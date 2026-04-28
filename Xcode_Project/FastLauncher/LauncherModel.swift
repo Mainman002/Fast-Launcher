@@ -6,9 +6,36 @@ import AppKit
 final class LauncherModel: ObservableObject {
     @Published var apps: [AppEntry] = []
     @Published var filteredApps: [AppEntry] = []
+    @Published var favoritePaths: Set<String> = [] // Persistent store
+    private let favoritesKey = "user_favorites_list"
     @Published var searchText: String = ""
     @Published var isAscending: Bool = true // 💡 New toggle state
 
+    init() {
+        loadFavorites()
+    }
+
+    // MARK: - Favorites Logic
+    
+    func toggleFavorite(_ app: AppEntry) {
+        if favoritePaths.contains(app.path) {
+            favoritePaths.remove(app.path)
+        } else {
+            favoritePaths.insert(app.path)
+        }
+        saveFavorites()
+    }
+
+    private func saveFavorites() {
+        let array = Array(favoritePaths)
+        UserDefaults.standard.set(array, forKey: favoritesKey)
+    }
+
+    private func loadFavorites() {
+        let saved = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
+        self.favoritePaths = Set(saved)
+    }
+    
     func toggleSortOrder() {
         isAscending.toggle()
         updateSearch(searchText) // Re-sort current view
@@ -17,11 +44,27 @@ final class LauncherModel: ObservableObject {
     func loadApps() {
         Task(priority: .userInitiated) {
             let scanned = AppScanner.scanApplications()
+            
             await MainActor.run {
-                self.apps = scanned
+                self.apps = scanned.sorted { smartSort($0.name, $1.name) }
+                
+                // 💡 Safety Check: Remove favorites that no longer exist on disk
+                let validPaths = Set(scanned.map { $0.path })
+                let orphanedFavorites = self.favoritePaths.subtracting(validPaths)
+                
+                if !orphanedFavorites.isEmpty {
+                    self.favoritePaths.formIntersection(validPaths)
+                    self.saveFavorites()
+                    print("Cleaned up \(orphanedFavorites.count) missing apps from favorites.")
+                }
+                
                 self.updateSearch(self.searchText)
             }
         }
+    }
+    
+    var favoriteApps: [AppEntry] {
+        apps.filter { favoritePaths.contains($0.path) }
     }
 
     func updateSearch(_ text: String) {

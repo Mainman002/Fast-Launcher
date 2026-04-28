@@ -6,55 +6,104 @@ struct ContentView: View {
     @FocusState private var searchFocused: Bool
     @State private var selectedIndex: Int = 0
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 120), spacing: 12)
-    ]
-    
+    private let columns = [GridItem(.adaptive(minimum: 120), spacing: 12)]
     private let columnsCount = 6
 
     var body: some View {
-        VStack(spacing: 0) { // Set spacing to 0 to avoid gaps in the transparency
+        VStack(spacing: 0) {
             searchBar
                 .padding(.bottom, 10)
             
-            Divider()
-                .opacity(0.2) // Barely visible line
-            
+            // 💡 The Favorites Shelf
+            if !model.favoriteApps.isEmpty {
+                favoritesShelf
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                    .padding(.horizontal, 20)
+            }
+
             resultsGrid
             
+//            Divider()
+//                .background(Color.white.opacity(0.1))
+//                .padding(.horizontal, 20)
+            
             bottomBar
-                .padding(.top, 10)
         }
         .frame(width: 900, height: 600)
-        .background(
-            ZStack {
-                VisualEffectView()
-                    // High corner radius makes it look like a modern floating card
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                
-                // The "Glass Border"
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [.white.opacity(0.4), .white.opacity(0.1), .black.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-            .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
-        )
+        .background(glassBackground) // Moved to a helper property for clarity
         .padding(12)
         .onAppear(perform: setupOnAppear)
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             focusSearch()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
-            hideLauncher()
-        }
         .onExitCommand { hideLauncher() }
         .background(keyHandler)
+    }
+
+    // MARK: - Background Component
+    
+    private var glassBackground: some View {
+        ZStack {
+            VisualEffectView()
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            
+            // The "Glass Border" highlight
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.4), .white.opacity(0.1), .black.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+    }
+
+    // MARK: - Favorites Shelf
+
+    private var favoritesShelf: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 20) {
+                ForEach(model.favoriteApps) { app in
+                    VStack(spacing: 6) {
+                        // Using your existing icon logic from the model
+                        Image(nsImage: app.icon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 44, height: 44)
+                            .onTapGesture {
+                                model.launch(app)
+                                hideLauncher()
+                            }
+                        
+                        Text(app.name)
+                            .font(.system(size: 10, weight: .medium))
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 70)
+                    }
+                    .help(app.path)
+                    .contextMenu {
+                        Button("Remove from Favorites") {
+                            withAnimation(.spring()) {
+                                model.toggleFavorite(app)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.vertical, 12)
+        }
+        .frame(height: 85)
     }
 
     // MARK: - Sub-Views
@@ -80,11 +129,21 @@ struct ContentView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(Array(model.filteredApps.enumerated()), id: \.offset) { index, app in
-                        AppCardView(app: app, isSelected: index == selectedIndex) {
-                            model.launch(app)
-                            hideLauncher()
-                        }
-                        .id(index) // This matches your ScrollViewReader proxy
+                        // 💡 Updated this call to include the new parameters
+                        AppCardView(
+                            app: app,
+                            isSelected: index == selectedIndex,
+                            isFavorite: model.favoritePaths.contains(app.path), // Pass current status
+                            onClick: {
+                                model.launch(app)
+                                hideLauncher()
+                            },
+                            onToggleFavorite: {
+                                // Tell the model to toggle the favorite status
+                                model.toggleFavorite(app)
+                            }
+                        )
+                        .id(index)
                     }
                 }
                 .padding()
@@ -117,6 +176,12 @@ struct ContentView: View {
             Spacer()
             
             Text("\(model.filteredApps.count) apps")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            
+            Spacer()
+            
+            Text("0.1.2")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
