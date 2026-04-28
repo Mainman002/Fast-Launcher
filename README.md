@@ -19,7 +19,8 @@ Open Xcode, hold "Command" and tap "B" to begin building the application. Once c
 - [HotKey](https://github.com/soffes/HotKey)
 
 ### Preview Images
-<img width="512" height="372" alt="01" src="https://github.com/user-attachments/assets/3705d9d0-0a03-4e2e-bbda-60c0176ef16a" />
-<img width="512" height="372" alt="02" src="https://github.com/user-attachments/assets/7af7f948-2263-4352-a5ff-6b15c8993bb2" />
-<img width="512" height="372" alt="03" src="https://github.com/user-attachments/assets/0254ddca-468f-4f26-85aa-02b4734af7c5" />
-<img width="512" height="372" alt="04" src="https://github.com/user-attachments/assets/c4f26301-fc3e-43fd-b4c4-5ee1413c79d0" />
+<img width="1102" height="800" alt="01" src="https://github.com/user-attachments/assets/8c7457ae-6111-4116-aa41-b8803f5315cc" />
+<img width="1102" height="800" alt="02" src="https://github.com/user-attachments/assets/d58f4705-5f9a-41ea-99fd-77309a19768d" />
+<img width="1102" height="800" alt="03" src="https://github.com/user-attachments/assets/4793a30a-9fb0-457c-b906-af73edc6176d" />
+<img width="1102" height="800" alt="04" src="https://github.com/user-attachments/assets/a12bc9d8-0c20-453b-8055-c6632e1d0007" />
+
