@@ -8,7 +8,7 @@ struct ContentView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 120), spacing: 12)]
     private let columnsCount = 6
-    private let app_version = "0.1.3"
+    private let app_version = "0.1.4"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,39 +72,27 @@ struct ContentView: View {
 
     private var favoritesShelf: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 20) {
+            HStack(spacing: 15) {
                 ForEach(model.favoriteApps) { app in
-                    VStack(spacing: 6) {
-                        // Using your existing icon logic from the model
-                        Image(nsImage: app.icon)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 44, height: 44)
-                            .onTapGesture {
-                                model.launch(app)
-                                hideLauncher()
-                            }
-                        
-                        Text(app.name)
-                            .font(.system(size: 10, weight: .medium))
-                            .lineLimit(1)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 70)
-                    }
-                    .help(app.path)
-                    .contextMenu {
-                        Button("Remove from Favorites") {
+                    // We wrap this in a custom container to get the hover/star logic
+                    ShelfItemView(
+                        app: app,
+                        onLaunch: {
+                            model.launch(app)
+                            hideLauncher()
+                        },
+                        onRemove: {
                             withAnimation(.spring()) {
                                 model.toggleFavorite(app)
                             }
                         }
-                    }
+                    )
                 }
             }
-            .padding(.horizontal, 25)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
         }
-        .frame(height: 85)
+        .frame(height: 100) // Increased slightly to accommodate the star and text
     }
 
     // MARK: - Sub-Views
@@ -233,6 +221,51 @@ struct ContentView: View {
 
     private func hideLauncher() {
         NSApp.windows.first?.orderOut(nil)
+    }
+}
+
+struct ShelfItemView: View {
+    let app: AppEntry
+    let onLaunch: () -> Void
+    let onRemove: () -> Void
+    
+    @State private var isHovering = false
+    
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 6) {
+                Image(nsImage: app.icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 40, height: 40)
+                
+                Text(app.name)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .foregroundStyle(isHovering ? .primary : .secondary)
+                    .frame(width: 70)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isHovering ? Color(NSColor.controlBackgroundColor).opacity(0.8) : Color.clear)
+            )
+            .onTapGesture { onLaunch() }
+            
+            // The "Remove" star button on the shelf
+            Button(action: onRemove) {
+                Image(systemName: "star.fill")
+                    .foregroundColor(.yellow)
+                    .font(.system(size: 9))
+                    .padding(4)
+                    .background(Circle().fill(Color.black.opacity(0.2))) // Better contrast on glass
+                    .opacity(isHovering ? 1 : 0) // Only show when hovering
+            }
+            .buttonStyle(.plain)
+            .offset(x: 2, y: -2)
+        }
+        .onHover { isHovering = $0 }
     }
 }
 
