@@ -3,7 +3,7 @@ name: Build and Release macOS App
 on:
   push:
     tags:
-      - "v*.*.*" # Triggers only when you push a tag like v1.0.2
+      - "*.*.*" # Triggers only when you push a tag like 1.0.2
   workflow_dispatch: # Allows manual builds too
 
 env:
