@@ -29,12 +29,21 @@ struct ContentView: View {
         .background(
             ZStack {
                 VisualEffectView()
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    // High corner radius makes it look like a modern floating card
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 
-                // Subtle glass border
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                // The "Glass Border"
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.4), .white.opacity(0.1), .black.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             }
+            .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
         )
         .padding(12)
         .onAppear(perform: setupOnAppear)
@@ -166,7 +175,8 @@ struct VisualEffectView: NSViewRepresentable {
         let view = NSVisualEffectView()
         view.blendingMode = .behindWindow
         view.state = .active
-        view.material = .hudWindow // 💡 This provides that high-quality Spotlight blur
+        view.material = .hudWindow // This provides that high-quality Spotlight blur
+        view.autoresizingMask = [.width, .height]
         return view
     }
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
