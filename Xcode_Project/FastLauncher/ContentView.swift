@@ -8,6 +8,7 @@ struct ContentView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 120), spacing: 12)]
     private let columnsCount = 6
+    private let app_version = "0.1.3"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -181,7 +182,7 @@ struct ContentView: View {
             
             Spacer()
             
-            Text("0.1.2")
+            Text("\(app_version)")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         
-        // Fix for your error: Use .zoomButton here 💡
+        // Fix for your error: Use .zoomButton here
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true

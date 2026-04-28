@@ -9,7 +9,7 @@ final class LauncherModel: ObservableObject {
     @Published var favoritePaths: Set<String> = [] // Persistent store
     private let favoritesKey = "user_favorites_list"
     @Published var searchText: String = ""
-    @Published var isAscending: Bool = true // 💡 New toggle state
+    @Published var isAscending: Bool = true // New toggle state
 
     init() {
         loadFavorites()
