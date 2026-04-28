@@ -12,8 +12,31 @@ final class LauncherModel: ObservableObject {
     @Published var isAscending: Bool = true // New toggle state
     @Published var hiddenPaths: Set<String> = []
     @Published var showHiddenMode: Bool = false // Toggle state
-
+    
+    @AppStorage("custom_paths") var customPaths: String = "/Applications" // Stored as comma-separated
+    @AppStorage("grid_size") var gridSize: Double = 110.0
+    @AppStorage("header_size") var headerSize: Double = 40.0
+    
     private let hiddenKey = "user_hidden_list"
+
+    var directoryList: [String] {
+        customPaths.components(separatedBy: ",").filter { !$0.isEmpty }
+    }
+
+    func addPath(_ path: String) {
+        var paths = directoryList
+        if !paths.contains(path) {
+            paths.append(path)
+            customPaths = paths.joined(separator: ",")
+            loadApps() // Rescan with new path
+        }
+    }
+
+    func removePath(_ path: String) {
+        let paths = directoryList.filter { $0 != path }
+        customPaths = paths.joined(separator: ",")
+        loadApps()
+    }
     
     private func loadHidden() {
         let saved = UserDefaults.standard.stringArray(forKey: hiddenKey) ?? []
@@ -23,6 +46,7 @@ final class LauncherModel: ObservableObject {
     init() {
         loadFavorites()
         loadHidden()
+        print("DEBUG: Active Directory List: \(directoryList)")
     }
     
     func toggleHide(_ app: AppEntry) {
@@ -49,6 +73,11 @@ final class LauncherModel: ObservableObject {
         }
         saveFavorites()
     }
+    
+    func resetPaths() {
+        customPaths = "/Applications,/System/Applications,/Users/\(NSUserName())/Applications"
+        loadApps()
+    }
 
     private func saveFavorites() {
         let array = Array(favoritePaths)
@@ -67,21 +96,22 @@ final class LauncherModel: ObservableObject {
 
     func loadApps() {
         Task(priority: .userInitiated) {
-            let scanned = AppScanner.scanApplications()
+            var allScanned: [AppEntry] = []
+            var seenPaths = Set<String>() // Local tracker for this scan session
+            
+            // 1. Scan the custom/default directory list
+            for path in directoryList {
+                let appsInPath = AppScanner.scanApplications(at: path, seenPaths: &seenPaths)
+                allScanned.append(contentsOf: appsInPath)
+            }
             
             await MainActor.run {
-                self.apps = scanned.sorted { smartSort($0.name, $1.name) }
+                // 2. Sort according to your smartSort logic
+                self.apps = allScanned.sorted { smartSort($0.name, $1.name) }
                 
-                // 💡 Safety Check: Remove favorites that no longer exist on disk
-                let validPaths = Set(scanned.map { $0.path })
-                let orphanedFavorites = self.favoritePaths.subtracting(validPaths)
-                
-                if !orphanedFavorites.isEmpty {
-                    self.favoritePaths.formIntersection(validPaths)
-                    self.saveFavorites()
-                    print("Cleaned up \(orphanedFavorites.count) missing apps from favorites.")
-                }
-                
+                // 3. Validation and UI refresh
+                let validPaths = Set(self.apps.map { $0.path })
+                self.favoritePaths.formIntersection(validPaths)
                 self.updateSearch(self.searchText)
             }
         }

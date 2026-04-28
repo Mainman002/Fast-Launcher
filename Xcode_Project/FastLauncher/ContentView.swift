@@ -5,10 +5,16 @@ struct ContentView: View {
     @StateObject private var model = LauncherModel()
     @FocusState private var searchFocused: Bool
     @State private var selectedIndex: Int = 0
+    @State private var showSettings = false
 
-    private let columns = [GridItem(.adaptive(minimum: 120), spacing: 12)]
+//    private let columns = [GridItem(.adaptive(minimum: 120), spacing: 12)]
+    
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: model.gridSize), spacing: 12)]
+    }
+    
     private let columnsCount = 6
-    private let app_version = "0.1.4"
+    private let app_version = "0.1.5"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,13 +76,15 @@ struct ContentView: View {
 
     // MARK: - Favorites Shelf
 
+    // In ContentView.swift
     private var favoritesShelf: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 15) {
+            HStack(spacing: 12) { // Spacing matches the grid
                 ForEach(model.favoriteApps) { app in
-                    // We wrap this in a custom container to get the hover/star logic
-                    ShelfItemView(
+                    // 💡 Use the new unified ShelfCardView
+                    ShelfCardView(
                         app: app,
+                        iconSize: model.headerSize, // Still controlled by header slider
                         onLaunch: {
                             model.launch(app)
                             hideLauncher()
@@ -92,7 +100,8 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
         }
-        .frame(height: 100) // Increased slightly to accommodate the star and text
+        // Set height dynamically based on the iconSize plus room for the card
+        .frame(height: model.headerSize + 60)
     }
 
     // MARK: - Sub-Views
@@ -124,6 +133,7 @@ struct ContentView: View {
                             isSelected: index == selectedIndex,
                             isFavorite: model.favoritePaths.contains(app.path),
                             isHidden: model.hiddenPaths.contains(app.path), // Hook up state
+                            gridSize: model.gridSize,
                             onClick: {
                                 model.launch(app)
                                 hideLauncher()
@@ -150,42 +160,53 @@ struct ContentView: View {
     }
 
     private var bottomBar: some View {
-        HStack(spacing: 12) {
-            Button(action: { model.loadApps() }) {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.plain)
-            .help("Refresh Apps")
-            
-            Button(action: {
-                model.showHiddenMode.toggle()
-                model.updateSearch(model.searchText)
-            }) {
-                Image(systemName: model.showHiddenMode ? "eye.slash.fill" : "eye")
-                    .foregroundColor(model.showHiddenMode ? .red : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help(model.showHiddenMode ? "Viewing Hidden Apps" : "Viewing Visible Apps")
-
-            // 💡 The new Sort Toggle Button
-            Button(action: { model.toggleSortOrder() }) {
-                Image(systemName: model.isAscending ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                    .foregroundColor(model.isAscending ? .secondary : .accentColor)
-            }
-            .buttonStyle(.plain)
-            .help(model.isAscending ? "Sorting: Ascending" : "Sorting: Descending")
-
-            Spacer()
-            
+        ZStack {
+            // 1. The CENTER section (Centered relative to the entire window)
             Text("\(model.filteredApps.count) apps")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            
-            Spacer()
-            
-            Text("\(app_version)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+
+            // 2. The LEFT and RIGHT sections
+            HStack {
+                // Group of 4 buttons aligned left
+                HStack(spacing: 12) {
+                    Button(action: { model.loadApps() }) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Refresh Apps")
+
+                    Button(action: {
+                        model.showHiddenMode.toggle()
+                        model.updateSearch(model.searchText)
+                    }) {
+                        Image(systemName: model.showHiddenMode ? "eye.slash.fill" : "eye")
+                            .foregroundColor(model.showHiddenMode ? .red : .secondary)
+                    }
+                    .help(model.showHiddenMode ? "Viewing Hidden Apps" : "Viewing Visible Apps")
+
+                    Button(action: { model.toggleSortOrder() }) {
+                        Image(systemName: model.isAscending ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                            .foregroundColor(model.isAscending ? .secondary : .accentColor)
+                    }
+                    .help(model.isAscending ? "Sorting: Ascending" : "Sorting: Descending")
+
+                    Button(action: { showSettings.toggle() }) {
+                        Image(systemName: "gearshape")
+                            .foregroundColor(.secondary)
+                    }
+                    .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                        SettingsView(model: model)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                // Version label aligned right
+                Text("\(app_version)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
@@ -239,45 +260,55 @@ struct ContentView: View {
 
 struct ShelfItemView: View {
     let app: AppEntry
+    let iconSize: Double
     let onLaunch: () -> Void
     let onRemove: () -> Void
     
     @State private var isHovering = false
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 6) {
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 40, height: 40)
-                
-                Text(app.name)
-                    .font(.system(size: 10, weight: .medium))
-                    .lineLimit(1)
-                    .foregroundStyle(isHovering ? .primary : .secondary)
-                    .frame(width: 70)
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isHovering ? Color(NSColor.controlBackgroundColor).opacity(0.8) : Color.clear)
-            )
-            .onTapGesture { onLaunch() }
+        VStack(spacing: 6) {
+            Image(nsImage: app.icon)
+                .resizable()
+                .scaledToFit()
+                .frame(width: iconSize, height: iconSize)
             
-            // The "Remove" star button on the shelf
-            Button(action: onRemove) {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
-                    .font(.system(size: 9))
-                    .padding(4)
-                    .background(Circle().fill(Color.black.opacity(0.2))) // Better contrast on glass
-                    .opacity(isHovering ? 1 : 0) // Only show when hovering
-            }
-            .buttonStyle(.plain)
-            .offset(x: 2, y: -2)
+            Text(app.name)
+                .font(.system(size: max(9, iconSize * 0.25), weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(isHovering ? .primary : .secondary)
+                .frame(width: iconSize + 30)
         }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isHovering ? Color(NSColor.controlBackgroundColor).opacity(0.8) : Color.clear)
+        )
+        // 💡 The "Safe Zone" Overlay for the Star Button
+        .overlay(
+            ZStack(alignment: .topTrailing) {
+                Button(action: onRemove) {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(.yellow)
+                        // Make the star slightly smaller than the grid stars
+                        .font(.system(size: max(8, iconSize * 0.2)))
+                        .frame(width: iconSize * 0.4, height: iconSize * 0.4)
+                        .background(
+                            Circle()
+                                .fill(Color.black.opacity(0.3))
+                                .blur(radius: 1)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovering ? 1 : 0)
+                // Offset it slightly so it "floats" over the corner of the icon
+                .offset(x: 4, y: -4)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        )
+        .onTapGesture { onLaunch() }
         .onHover { isHovering = $0 }
     }
 }

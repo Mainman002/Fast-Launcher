@@ -3,50 +3,76 @@ import AppKit
 
 final class AppScanner {
     
-    static func scanApplications() -> [AppEntry] {
+    // Updated: Accepts a path and an optional existing set to prevent duplicates across calls
+    static func scanApplications(at rootPath: String? = nil, seenPaths: inout Set<String>) -> [AppEntry] {
         let fileManager = FileManager.default
         
-        let appDirs: [URL] = [
-            URL(fileURLWithPath: "/Applications"),
-            URL(fileURLWithPath: "/System/Applications"),
-            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
-        ]
+        // 1. Resolve which directories to scan
+        let appDirs: [URL]
+        if let customPath = rootPath {
+            appDirs = [URL(fileURLWithPath: (customPath as NSString).expandingTildeInPath)]
+        } else {
+            appDirs = [
+                URL(fileURLWithPath: "/Applications"),
+                URL(fileURLWithPath: "/System/Applications"),
+                fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications")
+            ]
+        }
         
         var foundApps: [AppEntry] = []
-        var seenPaths: Set<String> = []
         
         for dir in appDirs {
-            guard (try? dir.checkResourceIsReachable()) == true else { continue }
+            var isDir: ObjCBool = false
+            // Ensure the directory exists before attempting to enumerate
+            guard fileManager.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else {
+                print("Scanner: Skipping invalid path: \(dir.path)")
+                continue
+            }
             
-            // Fixed: changed .skipsUserVisibleDotFiles to .skipsHiddenFiles
             let options: FileManager.DirectoryEnumerationOptions = [.skipsHiddenFiles, .skipsPackageDescendants]
             
-            if let enumerator = fileManager.enumerator(at: dir, includingPropertiesForKeys: [.isApplicationKey], options: options) {
-                for case let fileURL as URL in enumerator {
-                    if fileURL.pathExtension.lowercased() == "app" {
-                        let path = fileURL.path
-                        if seenPaths.contains(path) { continue }
-                        seenPaths.insert(path)
-                        
-                        if let entry = buildEntry(forAppURL: fileURL) {
-                            foundApps.append(entry)
-                        }
-                        enumerator.skipDescendants()
+            // 2. Use a generic enumerator that works for ANY folder structure
+            let enumerator = fileManager.enumerator(at: dir,
+                                                    includingPropertiesForKeys: [.isApplicationKey],
+                                                    options: options)
+            
+            while let fileURL = enumerator?.nextObject() as? URL {
+                // Add a quick check to see if we can actually read this URL
+                // This prevents the "task name port" errors from crashing the scan
+                guard (try? fileURL.checkResourceIsReachable()) == true else { continue }
+
+                if fileURL.pathExtension.lowercased() == "app" {
+                    let path = fileURL.path
+                    
+                    if seenPaths.contains(path) {
+                        enumerator?.skipDescendants()
+                        continue
                     }
+                    
+                    seenPaths.insert(path)
+                    
+                    if let entry = buildEntry(forAppURL: fileURL) {
+                        foundApps.append(entry)
+                    }
+                    enumerator?.skipDescendants()
                 }
             }
         }
-        return foundApps.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return foundApps
     }
     
     private static func buildEntry(forAppURL url: URL) -> AppEntry? {
-        // 1. Get the localized name from resource values (this key is stable)
-        let resourceValues = try? url.resourceValues(forKeys: [.localizedNameKey])
-        let name = resourceValues?.localizedName ?? url.deletingPathExtension().lastPathComponent
+        // 1. Check if we can actually reach the file
+        guard (try? url.checkResourceIsReachable()) == true else { return nil }
+
+        // 2. Localized name is standard metadata
+        let name = (try? url.resourceValues(forKeys: [.localizedNameKey]))?.localizedName
+                   ?? url.deletingPathExtension().lastPathComponent
+        
         let path = url.path
         
-        // 2. Get the Bundle ID safely using the Bundle object
-        // This avoids the 'bundleIdentifierKey' compiler error entirely
+        // 3. CORRECTED: Get the Bundle ID safely
+        // We attempt to load the bundle non-destructively to read the identifier
         let bundleID = Bundle(url: url)?.bundleIdentifier
         
         let icon = loadIcon(appURL: url, bundleID: bundleID)
