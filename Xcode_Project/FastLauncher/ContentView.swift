@@ -90,11 +90,25 @@ struct ContentView: View {
     }
 
     private var bottomBar: some View {
-        HStack {
-            Button("Refresh") { model.loadApps() }
+        HStack(spacing: 12) {
+            Button(action: { model.loadApps() }) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Refresh Apps")
+
+            // 💡 The new Sort Toggle Button
+            Button(action: { model.toggleSortOrder() }) {
+                Image(systemName: model.isAscending ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    .foregroundColor(model.isAscending ? .secondary : .accentColor)
+            }
+            .buttonStyle(.plain)
+            .help(model.isAscending ? "Sorting: Ascending" : "Sorting: Descending")
+
             Spacer()
+            
             Text("\(model.filteredApps.count) apps")
-                .font(.system(size: 12))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
