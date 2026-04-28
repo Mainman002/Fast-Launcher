@@ -1,23 +1,29 @@
-name: Build macOS App
+name: Build and Release macOS App
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch: # Allows you to trigger a build manually from the Actions tab
+    tags:
+      - "v*.*.*" # Triggers only when you push a tag like v1.0.2
+  workflow_dispatch: # Allows manual builds too
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
-    name: Build and Archive
-    runs-on: macos-26 # Optimized for your 2026 build environment
+  release:
+    name: Build & Release
+    runs-on: macos-26
+    permissions:
+      contents: write # Critical: Allows the action to create the release
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Select Xcode Version
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.4.1' # Matches your local version exactly
+          xcode-version: '26.4.1'
 
       - name: Build and Archive
         run: |
@@ -29,15 +35,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Export and Zip .app
+      - name: Package .app
         run: |
           mkdir -p ./export
           cp -R ./build/FastLauncher.xcarchive/Products/Applications/FastLauncher.app ./export/
           cd ./export
           zip -r ../FastLauncher-macOS.zip FastLauncher.app
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
         with:
-          name: FastLauncher-v${{ github.run_number }}
-          path: FastLauncher-macOS.zip
+          files: FastLauncher-macOS.zip
+          generate_release_notes: true # Auto-generates the changelog from your commits
