@@ -10,9 +10,33 @@ final class LauncherModel: ObservableObject {
     private let favoritesKey = "user_favorites_list"
     @Published var searchText: String = ""
     @Published var isAscending: Bool = true // New toggle state
+    @Published var hiddenPaths: Set<String> = []
+    @Published var showHiddenMode: Bool = false // Toggle state
+
+    private let hiddenKey = "user_hidden_list"
+    
+    private func loadHidden() {
+        let saved = UserDefaults.standard.stringArray(forKey: hiddenKey) ?? []
+        self.hiddenPaths = Set(saved)
+    }
 
     init() {
         loadFavorites()
+        loadHidden()
+    }
+    
+    func toggleHide(_ app: AppEntry) {
+        if hiddenPaths.contains(app.path) {
+            hiddenPaths.remove(app.path)
+        } else {
+            hiddenPaths.insert(app.path)
+        }
+        saveHidden()
+        updateSearch(searchText) // Refresh the list immediately
+    }
+
+    private func saveHidden() {
+        UserDefaults.standard.set(Array(hiddenPaths), forKey: hiddenKey)
     }
 
     // MARK: - Favorites Logic
@@ -68,27 +92,38 @@ final class LauncherModel: ObservableObject {
     }
 
     func updateSearch(_ text: String) {
-        searchText = text
+        self.searchText = text
         let query = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if query.isEmpty {
-            filteredApps = apps.sorted { smartSort($0.name, $1.name) }
-            return
-        }
-
-        let scored: [(AppEntry, Int)] = apps.compactMap { app in
-            if let score = FuzzySearch.score(query: query, target: app.name) {
-                if score > 50 { return (app, score) }
+        // 1. First, define our "Visibility Pool"
+        let visiblePool = apps.filter { app in
+            if showHiddenMode {
+                return hiddenPaths.contains(app.path)
+            } else {
+                return !hiddenPaths.contains(app.path)
             }
-            return nil
         }
 
-        filteredApps = scored.sorted { a, b in
-            let scoreA = a.1 / 100
-            let scoreB = b.1 / 100
-            if scoreA != scoreB { return scoreA > scoreB }
-            return smartSort(a.0.name, b.0.name)
-        }.map { $0.0 }
+        // 2. Apply Search Filter
+        if query.isEmpty {
+            // Just sort the current pool
+            self.filteredApps = visiblePool.sorted { smartSort($0.name, $1.name) }
+        } else {
+            // Fuzzy search within the current pool only
+            let scored: [(AppEntry, Int)] = visiblePool.compactMap { app in
+                if let score = FuzzySearch.score(query: query, target: app.name) {
+                    if score > 50 { return (app, score) }
+                }
+                return nil
+            }
+
+            self.filteredApps = scored.sorted { a, b in
+                let scoreA = a.1 / 100
+                let scoreB = b.1 / 100
+                if scoreA != scoreB { return scoreA > scoreB }
+                return smartSort(a.0.name, b.0.name)
+            }.map { $0.0 }
+        }
     }
 
     private func smartSort(_ nameA: String, _ nameB: String) -> Bool {

@@ -122,14 +122,17 @@ struct ContentView: View {
                         AppCardView(
                             app: app,
                             isSelected: index == selectedIndex,
-                            isFavorite: model.favoritePaths.contains(app.path), // Pass current status
+                            isFavorite: model.favoritePaths.contains(app.path),
+                            isHidden: model.hiddenPaths.contains(app.path), // Hook up state
                             onClick: {
                                 model.launch(app)
                                 hideLauncher()
                             },
                             onToggleFavorite: {
-                                // Tell the model to toggle the favorite status
                                 model.toggleFavorite(app)
+                            },
+                            onToggleHide: { // Hook up action
+                                model.toggleHide(app)
                             }
                         )
                         .id(index)
@@ -153,6 +156,16 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .help("Refresh Apps")
+            
+            Button(action: {
+                model.showHiddenMode.toggle()
+                model.updateSearch(model.searchText)
+            }) {
+                Image(systemName: model.showHiddenMode ? "eye.slash.fill" : "eye")
+                    .foregroundColor(model.showHiddenMode ? .red : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(model.showHiddenMode ? "Viewing Hidden Apps" : "Viewing Visible Apps")
 
             // 💡 The new Sort Toggle Button
             Button(action: { model.toggleSortOrder() }) {
